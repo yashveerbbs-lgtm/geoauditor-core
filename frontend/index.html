@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GeoAuditor - Enterprise Dashboard</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        :root { --bg-dark: #1e1e2f; --bg-panel: #27293d; --text-light: #ffffff; --text-muted: #9a9a9a; --accent-blue: #1d8cf8; --success: #00f2c3; --danger: #fd5d93; --vault: #e14eca; }
+        body { margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, sans-serif; display: flex; height: 100vh; background-color: var(--bg-dark); color: var(--text-light); overflow: hidden; }
+        
+        #sidebar { width: 260px; background: var(--bg-panel); padding: 25px; display: flex; flex-direction: column; box-shadow: 2px 0 15px rgba(0,0,0,0.3); z-index: 1000; }
+        #sidebar h2 { color: var(--text-light); font-size: 22px; margin-bottom: 5px; text-transform: uppercase; letter-spacing: 1.5px; }
+        #sidebar p { color: var(--text-muted); font-size: 13px; margin-top: 0; margin-bottom: 40px; }
+        
+        .nav-item { padding: 15px; margin-bottom: 12px; border-radius: 8px; background: rgba(255,255,255,0.03); cursor: pointer; transition: 0.3s; font-size: 14px; display: flex; align-items: center; justify-content: space-between; font-weight: 600; }
+        .nav-item:hover, .nav-item.active { background: var(--accent-blue); color: white; box-shadow: 0 4px 15px rgba(29, 140, 248, 0.4); }
+        
+        .metrics-box { margin-top: auto; background: rgba(0,0,0,0.2); padding: 20px; border-radius: 8px; border-left: 4px solid var(--success); }
+        .metrics-box h4 { margin: 0 0 10px 0; font-size: 14px; color: var(--text-muted); text-transform: uppercase; }
+        .metrics-value { font-size: 28px; font-weight: bold; color: var(--success); }
+        
+        #main-content { flex-grow: 1; display: flex; flex-direction: column; position: relative; }
+        #topbar { height: 70px; padding: 0 30px; display: flex; justify-content: space-between; align-items: center; }
+        #map-wrapper { flex-grow: 1; padding: 0 30px 30px 30px; }
+        #map { height: 100%; width: 100%; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.3); cursor: crosshair; }
+        
+        #controls { position: absolute; bottom: 50px; left: 50%; transform: translateX(-50%); z-index: 1000; background: rgba(39, 41, 61, 0.9); padding: 15px 25px; border-radius: 40px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); backdrop-filter: blur(5px); display: flex; gap: 10px; }
+        button { padding: 12px 24px; font-size: 14px; font-weight: 600; cursor: pointer; background: var(--accent-blue); color: white; border: none; border-radius: 25px; transition: 0.3s; text-transform: uppercase; letter-spacing: 1px; }
+        button:hover { transform: translateY(-2px); }
+        .vault-btn { background: var(--vault); }
+        .clear-btn { background: var(--danger); }
+
+        /* The Vault Modal UI */
+        #vault-modal { display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 2000; justify-content: center; align-items: center; backdrop-filter: blur(3px); }
+        .vault-content { background: var(--bg-panel); width: 450px; border-radius: 12px; padding: 25px; box-shadow: 0 15px 40px rgba(0,0,0,0.6); }
+        .vault-content h3 { margin-top: 0; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 15px; display: flex; justify-content: space-between; }
+        #vault-list { list-style: none; padding: 0; margin: 0; max-height: 300px; overflow-y: auto; }
+        .vault-item { padding: 15px; background: rgba(255,255,255,0.05); margin-bottom: 10px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; transition: 0.2s; }
+        .vault-item:hover { background: rgba(255,255,255,0.1); border-left: 4px solid var(--vault); }
+        .vault-item-load { color: var(--vault); font-weight: bold; font-size: 12px; text-transform: uppercase; }
+    </style>
+</head>
+<body>
+
+    <div id="sidebar">
+        <h2>GeoAuditor</h2>
+        <p>Enterprise PropTech Solutions</p>
+        
+        <div class="nav-item active" onclick="closeVault()">Live Map Editor</div>
+        <div class="nav-item" onclick="openVault()" style="color: var(--vault);">Saved Plots <span>📂</span></div>
+        
+        <div class="metrics-box">
+            <h4>Telemetry: Live Pins</h4>
+            <div class="metrics-value" id="pin-count">0</div>
+        </div>
+    </div>
+
+    <div id="main-content">
+        <div id="topbar">
+            <span>Active Workspace: <strong style="color: var(--accent-blue);">Bikaner District</strong></span>
+            <span style="color: var(--text-muted); font-size: 14px;">Math Engine: <span style="color: var(--success);">● Online</span></span>
+        </div>
+        <div id="map-wrapper"><div id="map"></div></div>
+        
+        <div id="controls">
+            <button onclick="processLiveCoordinates()">Optimize</button>
+            <button class="vault-btn" onclick="saveToVault()">Save to Vault</button>
+            <button class="clear-btn" onclick="clearMap()">Clear</button>
+        </div>
+
+        <div id="vault-modal">
+            <div class="vault-content">
+                <h3><span>Secure Vault</span> <span style="cursor:pointer; color:var(--text-muted);" onclick="closeVault()">✖</span></h3>
+                <ul id="vault-list"></ul>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        const map = L.map('map').setView([28.025, 73.315], 14);
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', { maxZoom: 19 }).addTo(map);
+
+        let rawPoints = [];
+        let markers = [];
+        let currentPolygon = null;
+        let lastOptimizedData = null; 
+
+        map.on('click', function(e) {
+            const lat = parseFloat(e.latlng.lat.toFixed(5));
+            const lng = parseFloat(e.latlng.lng.toFixed(5));
+            rawPoints.push({ lat: lat, lng: lng });
+            const marker = L.circleMarker([lat, lng], { color: '#fd5d93', fillColor: '#fd5d93', fillOpacity: 1, radius: 6 }).addTo(map);
+            markers.push(marker);
+            document.getElementById('pin-count').innerText = rawPoints.length;
+        });
+
+        async function processLiveCoordinates() {
+            if (rawPoints.length < 3) return alert("System requires at least 3 pins.");
+            
+            const payload = JSON.stringify(rawPoints); // The bypassed payload
+
+            try {
+                const response = await fetch("http://127.0.0.1:8000/api/process-coordinates", { 
+                    method: "POST", 
+                    headers: { "Content-Type": "application/json" },
+                    body: payload 
+                });
+                
+                const result = await response.json();
+
+                if (result.status === "success") {
+                    let correctedPoints = result.corrected_data.optimized_polygon || result.corrected_data;
+                    if (!Array.isArray(correctedPoints)) return alert("Data error.");
+
+                    lastOptimizedData = JSON.stringify(correctedPoints); 
+                    if (currentPolygon) map.removeLayer(currentPolygon);
+                    
+                    const mapFormat = correctedPoints.map(point => [point.lat, point.lng]);
+                    currentPolygon = L.polygon(mapFormat, { color: '#1d8cf8', weight: 3, fillColor: '#1d8cf8', fillOpacity: 0.3 }).addTo(map);
+                }
+            } catch (error) {
+                alert("Connection failed.");
+            }
+        }
+
+        async function saveToVault() {
+            if (!lastOptimizedData) return alert("You must optimize a boundary first before saving!");
+            const plotName = prompt("Enter a name for this plot (e.g., Commercial Zone A):");
+            if (!plotName) return;
+
+            const formData = new FormData();
+            formData.append("plot_name", plotName);
+            formData.append("boundary_data", lastOptimizedData);
+
+            try {
+                const response = await fetch("http://127.0.0.1:8000/api/save-plot", { method: "POST", body: formData });
+                const result = await response.json();
+                if (result.status === "success") { 
+                    alert("Success! " + result.message); 
+                }
+            } catch(e) {
+                alert("Database connection failed.");
+            }
+        }
+
+        // --- NEW VAULT LOGIC ---
+        async function openVault() {
+            document.getElementById('vault-modal').style.display = 'flex';
+            const list = document.getElementById('vault-list');
+            list.innerHTML = "<p style='text-align:center;'>Accessing Database...</p>";
+
+            try {
+                // Reach into your Python SQLite database
+                const response = await fetch("http://127.0.0.1:8000/api/saved-plots");
+                const result = await response.json();
+
+                if (result.status === "success") {
+                    list.innerHTML = "";
+                    if (result.plots.length === 0) {
+                        list.innerHTML = "<p style='text-align:center; color:var(--text-muted);'>Vault is currently empty.</p>";
+                        return;
+                    }
+
+                    // Build the UI list of saved plots
+                    result.plots.forEach(plot => {
+                        const li = document.createElement('li');
+                        li.className = "vault-item";
+                        li.innerHTML = `<span><strong>${plot.name}</strong> <br><span style="font-size:11px; color:var(--text-muted);">ID: ${plot.id} | Points: ${plot.data.length}</span></span> <span class="vault-item-load">LOAD ⬇</span>`;
+                        
+                        // Tell the list item what to do when clicked
+                        li.onclick = () => loadFromVault(plot.data);
+                        list.appendChild(li);
+                    });
+                }
+            } catch(e) {
+                list.innerHTML = "<p style='color:var(--danger);'>Failed to connect to the Vault.</p>";
+            }
+        }
+
+        function closeVault() {
+            document.getElementById('vault-modal').style.display = 'none';
+        }
+
+        function loadFromVault(plotData) {
+            clearMap(); // Wipe the screen clean first
+            
+            // Draw the saved plot in a special "Vault Purple" color
+            const mapFormat = plotData.map(point => [point.lat, point.lng]);
+            currentPolygon = L.polygon(mapFormat, { color: '#e14eca', weight: 4, fillColor: '#e14eca', fillOpacity: 0.4 }).addTo(map);
+            
+            // Auto-zoom the camera directly to the saved property
+            map.fitBounds(currentPolygon.getBounds());
+            
+            closeVault();
+            document.getElementById('pin-count').innerText = "Loaded";
+        }
+
+        function clearMap() {
+            rawPoints = [];
+            markers.forEach(marker => map.removeLayer(marker));
+            markers = [];
+            if (currentPolygon) { map.removeLayer(currentPolygon); currentPolygon = null; }
+            lastOptimizedData = null;
+            document.getElementById('pin-count').innerText = "0";
+        }
+    </script>
+</body>
+</html>
