@@ -59,7 +59,7 @@
     <div id="main-content">
         <div id="topbar">
             <span>Active Workspace: <strong style="color: var(--accent-blue);">Bikaner District</strong></span>
-            <span style="color: var(--text-muted); font-size: 14px;">Math Engine: <span style="color: var(--success);">● Online</span></span>
+            <span style="color: var(--text-muted); font-size: 14px;">Math Engine: <span style="color: var(--success);">● Cloud Active</span></span>
         </div>
         <div id="map-wrapper"><div id="map"></div></div>
         
@@ -99,10 +99,11 @@
         async function processLiveCoordinates() {
             if (rawPoints.length < 3) return alert("System requires at least 3 pins.");
             
-            const payload = JSON.stringify(rawPoints); // The bypassed payload
+            const payload = JSON.stringify(rawPoints); 
 
             try {
-                const response = await fetch("http://127.0.0.1:8000/api/process-coordinates", { 
+                // REWIRED TO CLOUD URL
+                const response = await fetch("https://geoauditor-engine.onrender.com/api/process-coordinates", { 
                     method: "POST", 
                     headers: { "Content-Type": "application/json" },
                     body: payload 
@@ -135,7 +136,8 @@
             formData.append("boundary_data", lastOptimizedData);
 
             try {
-                const response = await fetch("http://127.0.0.1:8000/api/save-plot", { method: "POST", body: formData });
+                // REWIRED TO CLOUD URL
+                const response = await fetch("https://geoauditor-engine.onrender.com/api/save-plot", { method: "POST", body: formData });
                 const result = await response.json();
                 if (result.status === "success") { 
                     alert("Success! " + result.message); 
@@ -145,15 +147,14 @@
             }
         }
 
-        // --- NEW VAULT LOGIC ---
         async function openVault() {
             document.getElementById('vault-modal').style.display = 'flex';
             const list = document.getElementById('vault-list');
             list.innerHTML = "<p style='text-align:center;'>Accessing Database...</p>";
 
             try {
-                // Reach into your Python SQLite database
-                const response = await fetch("http://127.0.0.1:8000/api/saved-plots");
+                // REWIRED TO CLOUD URL
+                const response = await fetch("https://geoauditor-engine.onrender.com/api/saved-plots");
                 const result = await response.json();
 
                 if (result.status === "success") {
@@ -163,13 +164,10 @@
                         return;
                     }
 
-                    // Build the UI list of saved plots
                     result.plots.forEach(plot => {
                         const li = document.createElement('li');
                         li.className = "vault-item";
                         li.innerHTML = `<span><strong>${plot.name}</strong> <br><span style="font-size:11px; color:var(--text-muted);">ID: ${plot.id} | Points: ${plot.data.length}</span></span> <span class="vault-item-load">LOAD ⬇</span>`;
-                        
-                        // Tell the list item what to do when clicked
                         li.onclick = () => loadFromVault(plot.data);
                         list.appendChild(li);
                     });
@@ -184,15 +182,10 @@
         }
 
         function loadFromVault(plotData) {
-            clearMap(); // Wipe the screen clean first
-            
-            // Draw the saved plot in a special "Vault Purple" color
+            clearMap(); 
             const mapFormat = plotData.map(point => [point.lat, point.lng]);
             currentPolygon = L.polygon(mapFormat, { color: '#e14eca', weight: 4, fillColor: '#e14eca', fillOpacity: 0.4 }).addTo(map);
-            
-            // Auto-zoom the camera directly to the saved property
             map.fitBounds(currentPolygon.getBounds());
-            
             closeVault();
             document.getElementById('pin-count').innerText = "Loaded";
         }
